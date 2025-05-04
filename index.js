@@ -11,10 +11,6 @@ const server = http.createServer(app);
 
 // Middleware para procesar JSON
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Permitir archivos estáticos
-app.use(express.static(path.join(__dirname, 'public')));
 
 const io = socketIO(server, {
   cors: {
@@ -25,6 +21,7 @@ const io = socketIO(server, {
 
 // Directorio base para todas las sesiones
 const SESSIONS_DIR = path.join(__dirname, "sessions");
+// Archivo para almacenar usuarios
 const USERS_FILE = path.join(__dirname, "users.json");
 
 // Crear directorio de sesiones si no existe
@@ -34,13 +31,14 @@ if (!fs.existsSync(SESSIONS_DIR)) {
 
 // Inicializar archivo de usuarios si no existe
 if (!fs.existsSync(USERS_FILE)) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify({ users: [] }));
+  fs.writeFileSync(USERS_FILE, JSON.stringify({ users: [] }), 'utf8');
 }
 
 // Cargar usuarios
 function loadUsers() {
   try {
-    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+    const data = fs.readFileSync(USERS_FILE, 'utf8');
+    return JSON.parse(data);
   } catch (err) {
     console.error("Error al cargar usuarios:", err);
     return { users: [] };
@@ -48,195 +46,174 @@ function loadUsers() {
 }
 
 // Guardar usuarios
-function saveUsers(userData) {
+function saveUsers(usersData) {
   try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(userData, null, 2));
+    fs.writeFileSync(USERS_FILE, JSON.stringify(usersData, null, 2), 'utf8');
   } catch (err) {
     console.error("Error al guardar usuarios:", err);
   }
 }
 
-// Generar hash para contraseña
-function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return { hash, salt };
+// Hash de contraseña
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-// Verificar contraseña
-function verifyPassword(password, hash, salt) {
-  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return hash === verifyHash;
+// Generar token de autenticación
+function generateToken() {
+  return crypto.randomBytes(32).toString('hex');
 }
 
-// Rutas de autenticación
-app.post("/auth/register", (req, res) => {
+// API de registro
+app.post("/api/register", (req, res) => {
   const { username, password } = req.body;
   
   if (!username || !password) {
-    return res.status(400).json({ success: false, message: "Usuario y contraseña son requeridos" });
+    return res.status(400).json({ error: "Nombre de usuario y contraseña son requeridos" });
   }
   
-  const userData = loadUsers();
+  const usersData = loadUsers();
   
   // Verificar si el usuario ya existe
-  if (userData.users.some(user => user.username === username)) {
-    return res.status(400).json({ success: false, message: "El usuario ya existe" });
+  if (usersData.users.some(user => user.username === username)) {
+    return res.status(409).json({ error: "El nombre de usuario ya está en uso" });
   }
   
-  // Crear hash de la contraseña
-  const { hash, salt } = hashPassword(password);
+  // Crear nuevo usuario
+  const hashedPassword = hashPassword(password);
+  const token = generateToken();
+  const sessionId = `session_${username}`;
   
-  // Asignar una sesión al usuario
-  let sessionId = `session_${username}`;
+  // Crear el directorio de la sesión si no existe
   const sessionDir = path.join(SESSIONS_DIR, sessionId);
-  
-  // Crear directorio de sesión si no existe
   if (!fs.existsSync(sessionDir)) {
     fs.mkdirSync(sessionDir, { recursive: true });
   }
   
-  // Guardar nuevo usuario
-  userData.users.push({
+  // Guardar usuario
+  usersData.users.push({
     username,
-    hash,
-    salt,
-    sessionId,
-    created: new Date().toISOString()
+    password: hashedPassword,
+    token,
+    sessionId
   });
   
-  saveUsers(userData);
+  saveUsers(usersData);
   
-  res.json({ 
-    success: true, 
-    message: "Usuario registrado exitosamente",
-    user: { 
-      username, 
-      sessionId 
-    }
+  res.status(201).json({ 
+    username, 
+    token,
+    sessionId
   });
 });
 
-app.post("/auth/login", (req, res) => {
+// API de login
+app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
   
   if (!username || !password) {
-    return res.status(400).json({ success: false, message: "Usuario y contraseña son requeridos" });
+    return res.status(400).json({ error: "Nombre de usuario y contraseña son requeridos" });
   }
   
-  const userData = loadUsers();
-  const user = userData.users.find(user => user.username === username);
+  const usersData = loadUsers();
+  const user = usersData.users.find(u => 
+    u.username === username && 
+    u.password === hashPassword(password)
+  );
   
   if (!user) {
-    return res.status(400).json({ success: false, message: "Usuario no encontrado" });
+    return res.status(401).json({ error: "Credenciales incorrectas" });
   }
   
-  // Verificar contraseña
-  if (!verifyPassword(password, user.hash, user.salt)) {
-    return res.status(400).json({ success: false, message: "Contraseña incorrecta" });
-  }
-  
-  // Generar token simple (para una implementación real, usar JWT)
-  const token = crypto.randomBytes(32).toString('hex');
+  // Generar nuevo token
+  const token = generateToken();
   user.token = token;
-  user.lastLogin = new Date().toISOString();
-  saveUsers(userData);
+  saveUsers(usersData);
+  
+  // Asegurarse de que existe el directorio de sesión
+  const sessionDir = path.join(SESSIONS_DIR, user.sessionId);
+  if (!fs.existsSync(sessionDir)) {
+    fs.mkdirSync(sessionDir, { recursive: true });
+  }
   
   res.json({ 
-    success: true, 
-    message: "Login exitoso",
-    user: { 
-      username: user.username, 
-      sessionId: user.sessionId,
-      token
-    }
+    username: user.username, 
+    token,
+    sessionId: user.sessionId
   });
 });
 
-// Gestión de conexiones Socket.io con autenticación
+// Autenticación de Socket.IO
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  
+  if (!token) {
+    return next(new Error("Autenticación requerida"));
+  }
+  
+  const usersData = loadUsers();
+  const user = usersData.users.find(u => u.token === token);
+  
+  if (!user) {
+    return next(new Error("Token inválido"));
+  }
+  
+  // Adjuntar información del usuario al socket
+  socket.user = user;
+  next();
+});
+
+// Gestión de conexiones Socket.IO
 io.on("connection", (socket) => {
-  let authenticated = false;
-  let username = null;
-  let sessionId = null;
-  let pty = null;
+  const user = socket.user;
+  const sessionDir = path.join(SESSIONS_DIR, user.sessionId);
   
-  console.log("Cliente conectado, esperando autenticación");
+  console.log(`Usuario conectado: ${user.username} (${user.sessionId})`);
+
+  // Enviar información de la sesión al cliente
+  socket.emit("output", `Conectado a SYA HOST Terminal\n`);
+  socket.emit("output", `Usuario: ${user.username}\n`);
+  socket.emit("output", `Sesión: ${user.sessionId}\n`);
+  socket.emit("output", `Directorio: ${sessionDir}\n\n`);
   
-  // Autenticar con token
-  socket.on("authenticate", (data) => {
-    const { token } = data;
-    const userData = loadUsers();
-    const user = userData.users.find(user => user.token === token);
-    
-    if (!user) {
-      socket.emit("auth_error", "Token inválido o expirado");
-      return;
-    }
-    
-    authenticated = true;
-    username = user.username;
-    sessionId = user.sessionId;
-    
-    console.log(`Usuario autenticado: ${username}, Sesión: ${sessionId}`);
-    
-    // Directorio de sesión del usuario
-    const sessionDir = path.join(SESSIONS_DIR, sessionId);
-    
-    // Crear directorio si no existe
-    if (!fs.existsSync(sessionDir)) {
-      fs.mkdirSync(sessionDir, { recursive: true });
-    }
-    
-    // Iniciar terminal en el directorio de sesión
-    pty = spawn("bash", [], {
-      cwd: sessionDir,
-      env: { ...process.env, TERM: "xterm-color" }
-    });
-    
-    // Notificar al cliente que la autenticación fue exitosa
-    socket.emit("authenticated", { 
-      username, 
-      sessionId 
-    });
-    
-    socket.emit("output", `Bienvenido a SYA HOST Terminal, ${username}!\n`);
-    socket.emit("output", `Tu sesión: ${sessionId}\n`);
-    socket.emit("output", `Directorio actual: ${sessionDir}\n\n`);
-    
-    // Configurar handlers para entrada/salida del terminal
-    pty.stdout.on("data", (data) => {
-      socket.emit("output", data.toString());
-    });
-    
-    pty.stderr.on("data", (data) => {
-      socket.emit("output", data.toString());
-    });
+  // Enviar información de usuario al cliente
+  socket.emit("session", {
+    username: user.username,
+    sessionId: user.sessionId
   });
-  
-  // Procesar comandos sólo si está autenticado
+
+  // Iniciar bash en el directorio de la sesión
+  const pty = spawn("bash", [], {
+    cwd: sessionDir,
+    env: { ...process.env, TERM: "xterm-color" }
+  });
+
+  // Enviar comandos al terminal
   socket.on("command", (cmd) => {
-    if (!authenticated || !pty) {
-      socket.emit("auth_error", "No autenticado");
-      return;
-    }
-    
     pty.stdin.write(cmd + "\n");
   });
-  
+
+  // Recibir salida del terminal y enviarla al frontend
+  pty.stdout.on("data", (data) => {
+    socket.emit("output", data.toString());
+  });
+
+  pty.stderr.on("data", (data) => {
+    socket.emit("output", data.toString());
+  });
+
+  // Manejar desconexión
   socket.on("disconnect", () => {
-    if (pty) {
-      pty.kill();
-      console.log(`Usuario desconectado: ${username || "no autenticado"}`);
-    }
+    console.log(`Usuario desconectado: ${user.username}`);
+    pty.kill();
   });
 });
 
-// Ruta para servir la página principal
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// Servir archivos estáticos si es necesario (opcional)
+app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Servidor en http://localhost:${PORT}`);
+  console.log(`Servidor Socket.io en http://localhost:${PORT}`);
   console.log(`Directorio de sesiones: ${SESSIONS_DIR}`);
 });
