@@ -1,15 +1,18 @@
 const express = require("express");
 const http = require("http");
 const socketIO = require("socket.io");
+const cors = require("cors"); // <--- nuevo
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
 const app = express();
-const server = http.createServer(app);
-
-// Middleware para procesar JSON
+app.use(cors({ // <--- nuevo
+  origin: '*',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 const io = socketIO(server, {
