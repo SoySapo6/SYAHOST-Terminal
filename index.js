@@ -10,7 +10,6 @@ const cors = require("cors");
 const app = express();
 const server = http.createServer(app);
 
-// Middleware para CORS
 app.use(cors({
   origin: '*',  // Puedes reemplazar '*' por tu dominio específico si quieres más seguridad
   methods: ['GET', 'POST'],
