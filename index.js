@@ -187,9 +187,9 @@ socket.emit("output", `
 
 • Usuario: ${user.username}
 • Sesión: ${user.sessionId}
-• Directorio: ${sessionDir}
 
-$ Hecho por SYA Team`);
+
+`);
   
   // Enviar información de usuario al cliente
   socket.emit("session", {
