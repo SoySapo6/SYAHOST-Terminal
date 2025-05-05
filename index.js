@@ -179,10 +179,14 @@ io.on("connection", (socket) => {
   console.log(`Usuario conectado: ${user.username} (${user.sessionId})`);
 
   // Enviar información de la sesión al cliente
-  socket.emit("output", `Conectado a SYA HOST Terminal\n`);
-  socket.emit("output", `Usuario: ${user.username}\n`);
-  socket.emit("output", `Sesión: ${user.sessionId}\n`);
-  socket.emit("output", `Directorio: ${sessionDir}\n\n`);
+  // Enviar información de la sesión al cliente con colores
+socket.emit("output", `\x1b[36m╔══════════════════════════════════════╗\x1b[0m\n`);
+socket.emit("output", `\x1b[36m║  \x1b[33mSYA HOST Terminal - \x1b[32mConectado\x1b[0m     \x1b[36m║\x1b[0m\n`);
+socket.emit("output", `\x1b[36m╚══════════════════════════════════════╝\x1b[0m\n\n`);
+socket.emit("output", `\x1b[34m• Usuario: \x1b[35m${user.username}\x1b[0m\n`);
+socket.emit("output", `\x1b[34m• Sesión: \x1b[35m${user.sessionId}\x1b[0m\n`);
+socket.emit("output", `\x1b[34m• Directorio: \x1b[35m${sessionDir}\x1b[0m\n\n`);
+socket.emit("output", `\x1b[90m[SYA Team - Sistema de Terminal Avanzado]\x1b[0m\n\n`);
   
   // Enviar información de usuario al cliente
   socket.emit("session", {
