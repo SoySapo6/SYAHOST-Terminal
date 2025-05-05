@@ -180,13 +180,17 @@ io.on("connection", (socket) => {
 
   // Enviar información de la sesión al cliente
   // Enviar información de la sesión al cliente con colores
-socket.emit("output", `\x1b[36m╔══════════════════════════════════════╗\x1b[0m\n`);
-socket.emit("output", `\x1b[36m║  \x1b[33mSYA HOST Terminal - \x1b[32mConectado\x1b[0m     \x1b[36m║\x1b[0m\n`);
-socket.emit("output", `\x1b[36m╚══════════════════════════════════════╝\x1b[0m\n\n`);
-socket.emit("output", `\x1b[34m• Usuario: \x1b[35m${user.username}\x1b[0m\n`);
-socket.emit("output", `\x1b[34m• Sesión: \x1b[35m${user.sessionId}\x1b[0m\n`);
-socket.emit("output", `\x1b[34m• Directorio: \x1b[35m${sessionDir}\x1b[0m\n\n`);
-socket.emit("output", `\x1b[90m[SYA Team - Sistema de Terminal Avanzado]\x1b[0m\n\n`);
+socket.emit("output", `
+╔══════════════════════════════════════╗
+║  SYA HOST Terminal - Conectado      ║
+╚══════════════════════════════════════╝
+
+• Usuario: ${user.username}
+• Sesión: ${user.sessionId}
+• Directorio: ${sessionDir}
+
+[SYA Team - Sistema de Terminal Avanzado]
+`);
   
   // Enviar información de usuario al cliente
   socket.emit("session", {
