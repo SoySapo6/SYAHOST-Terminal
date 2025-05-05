@@ -181,17 +181,15 @@ io.on("connection", (socket) => {
   // Enviar información de la sesión al cliente
   // Enviar información de la sesión al cliente con colores
 socket.emit("output", `
-╔════════════════════════════╗
-║                                 ║
-║  SYA HOST Terminal - Conectado  ║ 
-║                                 ║
-╚════════════════════════════╝
+══════════
+  SYA HOST  
+══════════
 
 • Usuario: ${user.username}
 • Sesión: ${user.sessionId}
 • Directorio: ${sessionDir}
 
-$`);
+$ Hecho por SYA Team`);
   
   // Enviar información de usuario al cliente
   socket.emit("session", {
