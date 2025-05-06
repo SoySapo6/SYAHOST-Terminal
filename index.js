@@ -16,7 +16,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Middleware para procesar JSON
+// Middleware para procesar
 app.use(express.json());
 
 const io = socketIO(server, {
