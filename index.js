@@ -228,7 +228,7 @@ io.on("connection", (socket) => {
 // Servir archivos estáticos si es necesario (opcional)
 app.use(express.static(path.join(__dirname, 'public')));
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;  // fuerza puerto 3000 si no hay variable
 server.listen(PORT, () => {
   console.log(`Servidor Socket.io en http://localhost:${PORT}`);
   console.log(`Directorio de sesiones: ${SESSIONS_DIR}`);
